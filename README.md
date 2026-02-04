@@ -54,7 +54,7 @@ Ouvrez l'URL dans votre navigateur et jouer !
 Séquence 3 : Exercice
 ---------------------------------------------------
 Objectif : Customisez un image Docker avec Packer et déploiement sur K3d via Ansible
-Difficulté : Moyen/Difficile (~2h30)
+Difficulté : Moyen/Difficile (~2h)
 ---------------------------------------------------  
 Votre mission (si vous l'acceptez) : Créez une **image applicative customisée à l'aide de Packer** (Image de base Nginx embarquant le fichier index.html présent à la racine de ce Repository), puis déployer cette image customisée sur votre **cluster K3d** via **Ansible**, le tout toujours dans **GitHub Codespace**.  
 
@@ -71,12 +71,18 @@ Votre mission (si vous l'acceptez) : Créez une **image applicative customisée 
 4. Import de l'image dans K3d
 5. Déploiement du service dans K3d via Ansible
 6. Ouverture des ports et vérification du fonctionnement
-7. Documentation : Complétez ce Readme.
 
+---------------------------------------------------
+Séquence 4 : Documentation  
+Difficulté : Facile (~30 minutes)
+---------------------------------------------------
+Complétez et documentez ce fichier README.md pour nous expliquer comment utiliser votre solution.  
+Faites preuve de pédagogie et soyez clair dans vos expliquations et processus de travail.  
+   
 ---------------------------------------------------
 Evaluation
 ---------------------------------------------------
-Cet atelier, noté sur 20 points, est évalué sur la base du barème suivant :  
+Cet atelier, **noté sur 20 points**, est évalué sur la base du barème suivant :  
 - Repository exécutable sans erreur majeure (4 points)
 - Fonctionnement conforme au scénario annoncé (4 points)
 - Degré d'automatisation du projet (utilisation de Makefile ? script ? ...) (4 points)
