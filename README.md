@@ -180,7 +180,7 @@ Nous allons dans ce scénario **détruire notre PVC pra-data**. C'est à dire no
   
 ![Screenshot Actions](scenario2.png)  
 
-🔥 **PHASE 1 — Simuler le sinistre (perte du disque DB)**  
+🔥 **PHASE 1 — Simuler le sinistre (perte de la BDD de production)**  
 Copier/coller le code suivant dans votre terminal Codespace pour détruire votre base de données :
 ```
 kubectl -n pra scale deployment flask --replicas=0
