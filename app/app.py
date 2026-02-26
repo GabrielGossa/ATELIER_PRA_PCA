@@ -25,6 +25,29 @@ def init_db():
     conn.commit()
     conn.close()
 
+def get_latest_backup_info(backup_dir="/backup"):
+    if not os.path.isdir(backup_dir):
+        return None, None
+
+    latest_name = None
+    latest_mtime = None
+
+    for name in os.listdir(backup_dir):
+        path = os.path.join(backup_dir, name)
+        if not os.path.isfile(path):
+            continue
+
+        mtime = os.path.getmtime(path)
+        if latest_mtime is None or mtime > latest_mtime:
+            latest_mtime = mtime
+            latest_name = name
+
+    if latest_name is None:
+        return None, None
+
+    age_seconds = int((datetime.utcnow() - datetime.utcfromtimestamp(latest_mtime)).total_seconds())
+    return latest_name, age_seconds
+
 # ---------- Routes ----------
 
 @app.get("/")
@@ -87,6 +110,23 @@ def count():
     conn.close()
 
     return jsonify(count=n)
+
+@app.get("/status")
+def status():
+    init_db()
+
+    conn = get_conn()
+    cur = conn.execute("SELECT COUNT(*) FROM events")
+    n = cur.fetchone()[0]
+    conn.close()
+
+    last_backup_file, backup_age_seconds = get_latest_backup_info()
+
+    return jsonify(
+        count=n,
+        last_backup_file=last_backup_file,
+        backup_age_seconds=backup_age_seconds,
+    )
 
 # ---------- Main ----------
 if __name__ == "__main__":

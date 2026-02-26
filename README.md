@@ -231,27 +231,79 @@ Faites preuve de pédagogie et soyez clair dans vos explications et procedures d
 **Exercice 1 :**  
 Quels sont les composants dont la perte entraîne une perte de données ?  
   
-*..Répondez à cet exercice ici..*
+**Réponse :**
+
+- **PVC pra-data** : Contient la base SQLite active
+- **PVC pra-backup** : Contient les sauvegardes
+
+La perte simultanée des deux entraîne une perte de données irrécupérable.
 
 **Exercice 2 :**  
 Expliquez nous pourquoi nous n'avons pas perdu les données lors de la supression du PVC pra-data  
   
-*..Répondez à cet exercice ici..*
+**Réponse :**
+
+Les données n'ont pas été perdues définitivement car :
+1. Le CronJob sauvegarde la BDD toutes les minutes sur le PVC pra-backup
+2. Les deux PVC sont séparés : suppression de pra-data ≠ suppression de pra-backup
+3. Le Job de restauration (50-job-restore.yaml) a restauré les données depuis le backup
 
 **Exercice 3 :**  
 Quels sont les RTO et RPO de cette solution ?  
   
-*..Répondez à cet exercice ici..*
+**Réponse :**
+
+| Scénario | RTO | RPO |
+|----------|-----|-----|
+| PCA (crash pod) | ~10 sec | 0 |
+| PRA (perte BDD) | ~2-5 min | ~1 min |
+
+**RPO = 1 minute** car les backups s'exécutent toutes les minutes.
 
 **Exercice 4 :**  
 Pourquoi cette solution (cet atelier) ne peux pas être utilisé dans un vrai environnement de production ? Que manque-t-il ?   
   
-*..Répondez à cet exercice ici..*
+**Réponse :**
+
+1. **Pas de réplication géographique** : Data et backups sur la même machine → perte totale si disque crash
+2. **Pas de multi-zones** : Aucune redundance géographique
+3. **Rétention insuffisante** : Les anciens backups sont écrasés
+4. **Pas de chiffrement** : Données non protégées au repos
+5. **Pas de monitoring** : Si un backup échoue, on ne le sait pas
+6. **Pas de runbook/tests** : Procédures non documentées ni testées régulièrement
+7. **Pas de traçabilité** : Aucun audit trail
+8. **RPO insuffisant** : 1 minute trop long pour certaines apps critiques
   
 **Exercice 5 :**  
-Proposez une archtecture plus robuste.   
+Proposez une architecture plus robuste.   
   
-*..Répondez à cet exercice ici..*
+**Réponse :**
+```
+SITE PRIMAIRE (multi-AZ)
+├─ K8s Cluster (3 replicas pod répartis par zone)
+├─ PVC pra-data + snapshots horaires
+├─ Backup vers S3 (5 min) + versioning + chiffrement AES-256
+└─ Monitoring (Prometheus/Grafana/Alerts)
+
+SITE SECONDAIRE (région différente)
+├─ K8s Cluster en standby
+├─ Réplication continue (< 1 sec lag)
+└─ Prêt failover < 5 min
+
+RÉTENTION BACKUPS
+├─ Toutes les 5 min pendant 1 jour
+├─ Quotidien pendant 30 jours  
+├─ Hebdomadaire pendant 52 semaines
+└─ Mensuel conservé 1+ ans (Glacier)
+```
+
+**Améliorations clés :**
+- Multi-AZ pour HA (PCA)
+- Réplication géographique (PRA)
+- Chiffrement + audit trail
+- Monitoring + alertes
+- Runbook + fire drills
+- RTO: 1-15 min | RPO: ~5 min
 
 ---------------------------------------------------
 Séquence 6 : Ateliers  
@@ -264,12 +316,75 @@ Difficulté : Moyenne (~2 heures)
 * backup_age_seconds : âge du dernier backup
 
 *..**Déposez ici une copie d'écran** de votre réussite..*
+![alt text](image.png)
 
 ---------------------------------------------------
 ### **Atelier 2 : Choisir notre point de restauration**  
 Aujourd’hui nous restaurobs “le dernier backup”. Nous souhaitons **ajouter la capacité de choisir un point de restauration**.
 
-*..Décrir ici votre procédure de restauration (votre runbook)..*  
+**Runbook (point de restauration au choix) :**
+
+1. Lister les backups disponibles :
+```
+kubectl -n pra run debug-backup --rm -it --image=alpine --overrides='{"spec":{"containers":[{"name":"debug","image":"alpine","command":["sh"],"stdin":true,"tty":true,"volumeMounts":[{"name":"backup","mountPath":"/backup"}]}],"volumes":[{"name":"backup","persistentVolumeClaim":{"claimName":"pra-backup"}}]}}'
+ls -lh /backup
+exit
+```
+
+2. Choisir le fichier (ex: `app-1772096821.db`).
+
+3. Lancer la restauration avec le fichier choisi :
+```
+kubectl -n pra delete job sqlite-restore --ignore-not-found
+kubectl -n pra apply -f - <<'EOF'
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sqlite-restore
+  namespace: pra
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: restore
+          image: alpine
+          command: ["/bin/sh","-c"]
+          args:
+            - |
+              if [ -n "$RESTORE_FILE" ] && [ -f "/backup/$RESTORE_FILE" ]; then
+                TARGET="/backup/$RESTORE_FILE"
+              else
+                TARGET=$(ls -t /backup/*.db 2>/dev/null | head -1)
+              fi
+              if [ -z "$TARGET" ]; then
+                echo "No backup file found in /backup" >&2
+                exit 1
+              fi
+              cp "$TARGET" /data/app.db
+          env:
+            - name: RESTORE_FILE
+              value: "app-1772096821.db"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: backup
+              mountPath: /backup
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: pra-data
+        - name: backup
+          persistentVolumeClaim:
+            claimName: pra-backup
+EOF
+```
+
+4. Vérifier :
+```
+kubectl -n pra get jobs
+kubectl -n pra logs job/sqlite-restore
+```
   
 ---------------------------------------------------
 Evaluation

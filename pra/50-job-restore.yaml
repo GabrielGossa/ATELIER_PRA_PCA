@@ -13,8 +13,21 @@ spec:
           command: ["/bin/sh","-c"]
           args:
             - |
-              LATEST=$(ls -t /backup/*.db | head -1)
-              cp $LATEST /data/app.db
+              if [ -n "$RESTORE_FILE" ] && [ -f "/backup/$RESTORE_FILE" ]; then
+                TARGET="/backup/$RESTORE_FILE"
+              else
+                TARGET=$(ls -t /backup/*.db 2>/dev/null | head -1)
+              fi
+
+              if [ -z "$TARGET" ]; then
+                echo "No backup file found in /backup" >&2
+                exit 1
+              fi
+
+              cp "$TARGET" /data/app.db
+          env:
+            - name: RESTORE_FILE
+              value: ""
           volumeMounts:
             - name: data
               mountPath: /data
